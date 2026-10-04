@@ -1,5 +1,10 @@
 # Notes de version
 
+## 0.3.1 — Auteur et soutien
+
+- Pied de page : « Créé par Arnaud (Patart50) · Soutenir le projet ».
+- Fenêtre de soutien : GitHub Sponsors, adresses Bitcoin et EVM avec QR codes générés dans le navigateur.
+
 ## 0.3.0 — Plusieurs cryptos
 
 - Jusqu'à 10 cryptos dans une même simulation, chacune avec son montant à chaque achat ; capital de départ réparti.

@@ -61,3 +61,6 @@ Remplace le choix global « Binance ou fichier » de la v0.2 : chaque crypto peu
 
 ## D-020 ✅ Auteur affiché
 « par Arnaud (Patart50) », lien vers son profil GitHub, sous le titre (visible aussi sur mobile) et dans le pied de page ; balise `meta author`.
+
+## D-021 ✅ Auteur et soutien, à l'identique de pmpa-crypto
+Reprend pmpa D-055 (PR #18 et #19 de pmpa-crypto). Pied de page : ligne discrète « Créé par Arnaud (Patart50) · Soutenir le projet », sans nom de famille ; le nom renvoie au profil GitHub. « Soutenir le projet » ouvre une fenêtre : GitHub Sponsors et deux adresses dédiées aux dons (Bitcoin, réseau Bitcoin uniquement ; Ethereum et réseaux compatibles EVM), QR codes générés dans le navigateur (`qrcode`, aucun appel réseau). `src/lib/support.ts` et son test (checksum bech32, format EVM) copiés tels quels depuis pmpa-crypto (commit 37e9dc9) : une faute de frappe dans une adresse fait échouer la CI. `.github/FUNDING.yml` : `github: Patart50`. Section « Auteur et soutien » dans le README ; la page « À propos » (J3) la reprendra. Complète D-020 (l'en-tête lit maintenant l'auteur dans `support.ts`).

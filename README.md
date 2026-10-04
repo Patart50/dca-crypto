@@ -30,9 +30,17 @@ npm run update:ecb   # met à jour les taux EUR/USD de la BCE embarqués
 
 Spécification : [docs/SPEC.md](docs/SPEC.md) · Décisions : [docs/DECISIONS.md](docs/DECISIONS.md)
 
-## Auteur
+## Auteur et soutien
 
-Arnaud ([Patart50](https://github.com/Patart50)).
+Créé par Arnaud ([Patart50](https://github.com/Patart50)).
+
+L'outil est gratuit, sans publicité ni compte. Pour soutenir son développement :
+
+- [GitHub Sponsors](https://github.com/sponsors/Patart50) (carte bancaire, ponctuel ou mensuel) ;
+- Bitcoin, réseau Bitcoin uniquement : `bc1qd5j0yrrxp6wrk5ds0xne97hdrz5fvxjl8q22p4`
+- Ethereum et réseaux EVM (Arbitrum, Optimism, Base…) : `0x7e4b6bad06813506b724b5ea3cc9545a7b97eba4`
+
+Les mêmes adresses, avec QR codes, sont dans l'outil (« Soutenir le projet », en pied de page). Vérifiez les premiers et derniers caractères de l'adresse collée avant d'envoyer.
 
 ## Licence
 

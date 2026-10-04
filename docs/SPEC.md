@@ -59,7 +59,7 @@ Une page : formulaire en haut, résultats dessous en trois onglets. État : `src
 - **Synthèse** (`Results.svelte`) : phrase de rappel de la stratégie, chiffres clés (valeur, investi ; une crypto : prix moyen, quantité ; plusieurs : meilleure et moins bonne crypto), tableau « Par crypto » (plusieurs cryptos), comparaison DCA / achat unique avec verdict et mise en garde, graphiques « Valeur du portefeuille » (toutes cryptos) et « Prix moyen et cours » (crypto choisie dans une liste) (`LineChart.svelte`, D-014), notes sur les sources (chemins de conversion, cache, échéances sans cours, cours du jour non clos).
 - **Achats** (`Purchases.svelte`) : tableau trié du plus récent au plus ancien (inversable), colonne et filtre par crypto, plus haut et plus bas signalés, affichage par tranches, échéances sans cours.
 - **Export** (`ExportPanel.svelte`) : pmpa-crypto, tableur, sauvegarde et réouverture.
-- En-tête : « par Arnaud (Patart50) » sous le titre (D-020).
+- En-tête : « par Arnaud (Patart50) » sous le titre (D-020). Pied de page : « Créé par Arnaud (Patart50) · Soutenir le projet », fenêtre de soutien avec GitHub Sponsors et adresses Bitcoin / EVM, QR codes locaux (`Support.svelte`, `support.ts`, D-021).
 - Thème auto / clair / sombre, hors ligne (service worker), 375 px sans débordement, WCAG 2 AA vérifié avec axe-core.
 
 ## 7. Jalons
