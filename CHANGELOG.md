@@ -1,5 +1,12 @@
 # Notes de version
 
+## 1.0.0 — Première version stable
+
+- Page « À propos et limites » : ce que fait l'outil, vos données, méthode de calcul, limites connues, avertissement, contribuer, auteur et soutien.
+- Hors ligne vérifié : après une première visite, la page, les polices et les simulations déjà calculées s'ouvrent sans réseau ; un message clair si une période manque.
+- Accessibilité : lien « Aller au contenu », annonce de fin de simulation pour les lecteurs d'écran, focus sur le titre de la page À propos ; WCAG 2 AA vérifié avec axe-core sur tous les écrans, en clair et en sombre, sur bureau et à 375 px.
+- README orienté utilisateur.
+
 ## 0.3.1 — Auteur et soutien
 
 - Pied de page : « Créé par Arnaud (Patart50) · Soutenir le projet ».

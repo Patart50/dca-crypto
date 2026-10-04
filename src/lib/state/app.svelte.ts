@@ -377,7 +377,13 @@ class AppState {
         }
         void this.refreshAssets().catch(() => undefined);
       } catch (e) {
-        this.errors = [e instanceof PriceFetchError ? e.message : `Chargement des cours impossible : ${String(e)}`];
+        this.errors = [
+          typeof navigator !== 'undefined' && navigator.onLine === false
+            ? 'Vous êtes hors ligne : les cours de cette période ne sont pas encore sur cet appareil. Reconnectez-vous, ou utilisez une période déjà simulée ou vos fichiers de prix.'
+            : e instanceof PriceFetchError
+              ? e.message
+              : `Chargement des cours impossible : ${String(e)}`,
+        ];
         this.status = 'error';
         return;
       } finally {
