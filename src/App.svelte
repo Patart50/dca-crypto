@@ -52,10 +52,13 @@
 
 <header class="top">
   <div class="top-inner">
-    <a class="brand" href="./" aria-label="dca-crypto, accueil">
-      <span class="brand-name">dca-crypto</span>
-      <span class="brand-tag">Simulateur d’achats réguliers en crypto</span>
-    </a>
+    <div class="brand">
+      <a class="brand-name" href="./" aria-label="dca-crypto, accueil">dca-crypto</a>
+      <span class="brand-tag"
+        ><span class="tagline">Simulateur d’achats réguliers en crypto ·&nbsp;</span>par
+        <a href="https://github.com/Patart50" target="_blank" rel="noopener author">Arnaud (Patart50)</a></span
+      >
+    </div>
     <div class="top-actions">
       <span class="local" title="Aucune donnée n'est envoyée sur Internet, hors cours Binance si vous l'autorisez">
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"
@@ -112,7 +115,7 @@
   {:else if app.status !== 'loading'}
     <section class="empty" aria-label="Pour commencer">
       <p>
-        Choisissez un actif, un montant et un rythme, puis lancez la simulation : vous verrez ce que vos achats réguliers auraient donné, comparés à un
+        Choisissez une ou plusieurs cryptos, un montant pour chacune et un rythme, puis lancez la simulation : vous verrez ce que vos achats réguliers auraient donné, comparés à un
         achat unique au départ.
       </p>
       <p class="muted">
@@ -128,7 +131,7 @@
 <footer class="foot">
   <p>
     Simulation sur données passées, pas un conseil en investissement. Pour la fiscalité, exportez vers
-    <a href="https://patart50.github.io/pmpa-crypto/" target="_blank" rel="noopener">pmpa-crypto</a>. Code source libre (AGPL-3.0) sur
+    <a href="https://patart50.github.io/pmpa-crypto/" target="_blank" rel="noopener">pmpa-crypto</a>. Créé par <a href="https://github.com/Patart50" target="_blank" rel="noopener author">Arnaud (Patart50)</a>. Code source libre (AGPL-3.0) sur
     <a href="https://github.com/Patart50/dca-crypto" rel="noopener" target="_blank">GitHub</a> · Taux de change © BCE · v{__APP_VERSION__}
   </p>
 </footer>
@@ -158,10 +161,11 @@
   }
   .brand {
     display: grid;
-    text-decoration: none;
-    color: var(--ink);
   }
   .brand-name {
+    text-decoration: none;
+    color: var(--ink);
+    width: fit-content;
     font-family: var(--font-doc);
     font-size: 1.45rem;
     font-weight: 650;
@@ -293,7 +297,7 @@
     max-width: calc(100vw - 2rem);
   }
   @media (max-width: 640px) {
-    .brand-tag,
+    .tagline,
     .local {
       display: none;
     }

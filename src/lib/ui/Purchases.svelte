@@ -1,21 +1,33 @@
 <script lang="ts">
   import { dateFr, eur, eurPrice, integer, qty } from '../core/format';
-  import type { SimulationResult } from '../core/simulate';
+  import type { PortfolioResult } from '../core/portfolio';
 
-  let { result }: { result: SimulationResult } = $props();
+  let { result }: { result: PortfolioResult } = $props();
 
   const PAGE = 100;
   let shown = $state(PAGE);
   let newestFirst = $state(true);
-  const rows = $derived(newestFirst ? [...result.purchases].reverse() : result.purchases);
+  let filter = $state('');
+  const multi = $derived(result.assets.length > 1);
+  const filtered = $derived(filter ? result.purchases.filter((p) => p.asset === filter) : result.purchases);
+  const rows = $derived(newestFirst ? [...filtered].reverse() : filtered);
   const visible = $derived(rows.slice(0, shown));
-  const best = $derived(result.dca.bestPrice);
-  const worst = $derived(result.dca.worstPrice);
+  const extremes = $derived(new Map(result.assets.map((a) => [a.asset, { best: a.result.dca.bestPrice, worst: a.result.dca.worstPrice }])));
+  const skipped = $derived(result.assets.flatMap((a) => a.result.skipped.map((d) => ({ asset: a.asset, date: d }))));
 </script>
 
 <section class="purchases" aria-labelledby="purchases-title">
   <div class="head">
-    <h3 id="purchases-title">{integer(result.purchases.length)} achat{result.purchases.length > 1 ? 's' : ''} simulé{result.purchases.length > 1 ? 's' : ''}</h3>
+    <h3 id="purchases-title">{integer(filtered.length)} achat{filtered.length > 1 ? 's' : ''} simulé{filtered.length > 1 ? 's' : ''}</h3>
+    {#if multi}
+      <label class="filter">
+        <span>Crypto</span>
+        <select bind:value={filter} onchange={() => (shown = PAGE)}>
+          <option value="">Toutes</option>
+          {#each result.assets as a (a.asset)}<option value={a.asset}>{a.asset}</option>{/each}
+        </select>
+      </label>
+    {/if}
     <button class="btn btn-small" type="button" onclick={() => (newestFirst = !newestFirst)}>
       {newestFirst ? 'Du plus ancien au plus récent' : 'Du plus récent au plus ancien'}
     </button>
@@ -28,6 +40,7 @@
       <thead>
         <tr>
           <th scope="col">Date</th>
+          {#if multi}<th scope="col" class="left">Crypto</th>{/if}
           <th scope="col">Décaissé</th>
           <th scope="col">Frais</th>
           <th scope="col">Cours</th>
@@ -37,17 +50,19 @@
         </tr>
       </thead>
       <tbody>
-        {#each visible as p (p.date + p.kind)}
+        {#each visible as p (p.date + p.asset + p.kind)}
+          {@const x = extremes.get(p.asset)}
           <tr>
             <td>
               {dateFr(p.date)}
               {#if p.kind === 'initial'}<span class="tag">capital de départ</span>{/if}
             </td>
+            {#if multi}<td class="left asset">{p.asset}</td>{/if}
             <td class="num">{eur(p.amountEur)}</td>
             <td class="num">{eur(p.feeEur)}</td>
             <td class="num">
               {eurPrice(p.price)}
-              {#if p.price.eq(best)}<span class="tag gain">plus bas</span>{:else if p.price.eq(worst)}<span class="tag loss">plus haut</span>{/if}
+              {#if x && p.price.eq(x.best)}<span class="tag gain">plus bas</span>{:else if x && p.price.eq(x.worst)}<span class="tag loss">plus haut</span>{/if}
             </td>
             <td class="num">{qty(p.quantity)}</td>
             <td class="num">{eur(p.cumInvested)}</td>
@@ -64,10 +79,15 @@
     </button>
   {/if}
 
-  {#if result.skipped.length > 0}
+  {#if skipped.length > 0}
     <details>
-      <summary>{integer(result.skipped.length)} échéance{result.skipped.length > 1 ? 's' : ''} sans cours, sans achat</summary>
-      <p class="muted small">{result.skipped.slice(0, 200).map(dateFr).join(', ')}{result.skipped.length > 200 ? '…' : ''}</p>
+      <summary>{integer(skipped.length)} échéance{skipped.length > 1 ? 's' : ''} sans cours, sans achat</summary>
+      <p class="muted small">
+        {skipped
+          .slice(0, 200)
+          .map((s) => (multi ? `${s.asset} ${dateFr(s.date)}` : dateFr(s.date)))
+          .join(', ')}{skipped.length > 200 ? '…' : ''}
+      </p>
     </details>
   {/if}
 </section>
@@ -101,6 +121,22 @@
   }
   td {
     white-space: nowrap;
+  }
+  .left {
+    text-align: left;
+  }
+  .asset {
+    font-weight: 600;
+  }
+  .filter {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    margin-right: auto;
+  }
+  .filter select {
+    width: auto;
   }
   .tag {
     display: inline-block;

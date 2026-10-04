@@ -66,3 +66,21 @@ describe('pmpaCsv', () => {
     expect(c.rows[1][c.headers.indexOf('id')]).not.toBe(ids[1]);
   });
 });
+
+describe('pmpaCsv, plusieurs cryptos', () => {
+  it('fusionne les achats, triés par date, identifiants distincts', () => {
+    const eth = simulate({ ...params, asset: 'ETH', initialCapitalEur: undefined }, prices);
+    if (!eth.ok) throw new Error(eth.errors.join());
+    const table = parseCsv(pmpaCsv([run(), eth]));
+    const col = (name: string) => table.headers.indexOf(name);
+    expect(table.rows.map((r) => `${r[col('date')].slice(0, 10)} ${r[col('in_asset')]}`)).toEqual([
+      '2024-01-01 BTC',
+      '2024-01-01 BTC',
+      '2024-01-01 ETH',
+      '2024-01-02 BTC',
+      '2024-01-02 ETH',
+    ]);
+    const ids = table.rows.map((r) => r[col('id')]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});

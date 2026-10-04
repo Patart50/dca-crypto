@@ -4,19 +4,26 @@
  */
 import { isIsoDate, utcMsToDate } from '../core/dates';
 import { dec, type Dec } from '../core/money';
-import { simulate, validateParams, type Frequency, type SimulationParams, type SimulationResult } from '../core/simulate';
+import { MAX_ASSETS, simulatePortfolio, validatePortfolio, type PortfolioParams, type PortfolioResult } from '../core/portfolio';
+import type { Frequency } from '../core/simulate';
 import { BinanceDaily, PriceFetchError, type Route } from '../prices/binance';
 import { readCachedSeries, writeCachedSeries } from '../prices/cache';
 import { parsePriceCsv } from '../prices/csvPrices';
 import { EcbRates, type EcbData } from '../prices/ecb';
-import { backupPrices, makeBackup, readBackup, type EndMode, type PriceSource } from './backup';
+import { backupPrices, makeBackup, readBackup, type EndMode } from './backup';
 import { openStore, readJson, removeKey, writeJson } from './storage';
 
 export type Theme = 'auto' | 'light' | 'dark';
 
-export interface Form {
+export interface AssetRow {
+  /** Identifiant stable de la ligne (clé d'affichage). */
+  id: number;
   asset: string;
   amount: string;
+}
+
+export interface Form {
+  assets: AssetRow[];
   frequency: Frequency['kind'];
   /** 1 = lundi … 7 = dimanche. */
   weekday: number;
@@ -28,12 +35,11 @@ export interface Form {
   feeKind: 'percent' | 'fixed';
   feeValue: string;
   initial: string;
-  source: PriceSource;
 }
 
 export interface Settings {
   theme: Theme;
-  /** Consentement aux appels à l'API publique de Binance (D-002 de pmpa : opt-in, mémorisé). */
+  /** Consentement aux appels à l'API publique de Binance (D-011 : opt-in, mémorisé, révocable). */
   allowPriceFetch: boolean;
 }
 
@@ -44,31 +50,36 @@ export interface CsvPrices {
   last?: string;
   /** Lignes illisibles ignorées. */
   errorCount: number;
-  errors: string[];
+}
+
+export interface AssetPriceInfo {
+  source: 'binance' | 'csv';
+  routes?: Record<Route, number>;
+  fromCache?: boolean;
+  fileName?: string;
 }
 
 export interface PriceInfo {
-  source: PriceSource;
-  /** Jours par chemin de conversion (Binance). */
-  routes?: Record<Route, number>;
-  /** Premier jour avec un cours dans la période. */
-  first?: string;
-  /** Cours lus depuis le cache local (aucun appel réseau). */
-  fromCache?: boolean;
+  byAsset: Record<string, AssetPriceInfo>;
   /** Taux BCE embarqués indisponibles (version de développement). */
   noEcb?: boolean;
 }
+
+/** Résultat de la vérification d'un symbole. */
+export type AssetCheck = 'empty' | 'csv' | 'binance' | 'unknown' | 'unchecked';
 
 export const POPULAR_ASSETS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOGE', 'DOT', 'LINK', 'AVAX', 'LTC', 'USDT'];
 
 /** Date du jour en UTC : celle de la bougie journalière en cours (D-002). */
 export const todayUtc = () => utcMsToDate(Date.now());
 
+let nextId = 1;
+const row = (asset: string, amount: string): AssetRow => ({ id: nextId++, asset, amount });
+
 function defaultForm(): Form {
   const year = Number(todayUtc().slice(0, 4));
   return {
-    asset: 'BTC',
-    amount: '100',
+    assets: [row('BTC', '100')],
     frequency: 'monthly',
     weekday: 1,
     monthDay: '1',
@@ -78,16 +89,17 @@ function defaultForm(): Form {
     feeKind: 'percent',
     feeValue: '0,1',
     initial: '',
-    source: 'binance',
   };
 }
 
 const num = (s: string) => s.trim().replace(/\s/g, '').replace(',', '.');
+const sym = (s: string) => s.trim().toUpperCase();
 
 const FORM_KEY = 'simulation';
 const SETTINGS_KEY = 'reglages';
 const CSV_KEY = 'prix:csv';
 const ASSETS_KEY = 'actifs-binance';
+const ASSETS_MAX_AGE_DAYS = 7;
 
 class AppState {
   private readonly storage = openStore();
@@ -97,31 +109,88 @@ class AppState {
 
   form = $state<Form>(defaultForm());
   settings = $state<Settings>({ theme: 'auto', allowPriceFetch: false });
-  csv = $state.raw<CsvPrices | null>(null);
+  /** Cours importés, par crypto. */
+  csv = $state.raw<Record<string, CsvPrices>>({});
+  /** Actifs cotés en EUR ou USDT sur Binance (suggestions) et liste complète connue ou non. */
   assets = $state.raw<string[]>(POPULAR_ASSETS);
+  binanceList = $state.raw<Set<string> | null>(null);
+  checking = $state(false);
 
   status = $state<'idle' | 'loading' | 'consent' | 'done' | 'error'>('idle');
+  /** Action à reprendre après le consentement. */
+  private pending: 'run' | 'check' = 'run';
+  progress = $state<string>('');
   errors = $state.raw<string[]>([]);
-  result = $state.raw<SimulationResult | null>(null);
+  result = $state.raw<PortfolioResult | null>(null);
   priceInfo = $state.raw<PriceInfo | null>(null);
   /** Cours utilisés par le dernier résultat (pour la sauvegarde). */
-  private usedPrices: Map<string, Dec> = new Map();
+  private usedPrices = new Map<string, Map<string, Dec>>();
   toast = $state<string | null>(null);
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
 
   init() {
     const store = this.storage.store;
-    const saved = readJson<Partial<Form>>(store, FORM_KEY);
-    if (saved) this.form = { ...defaultForm(), ...saved };
+    const saved = readJson<Partial<Form> & { asset?: string; amount?: string }>(store, FORM_KEY);
+    if (saved) {
+      const assets = Array.isArray(saved.assets)
+        ? saved.assets.map((a) => row(String(a.asset ?? ''), String(a.amount ?? '')))
+        : saved.asset !== undefined
+          ? [row(saved.asset, saved.amount ?? '100')] // formulaire de la v0.2 (une crypto)
+          : defaultForm().assets;
+      this.form = { ...defaultForm(), ...saved, assets: assets.length ? assets : defaultForm().assets };
+      delete (this.form as Partial<{ asset: string; amount: string; source: string }>).asset;
+      delete (this.form as Partial<{ asset: string; amount: string; source: string }>).amount;
+      delete (this.form as Partial<{ asset: string; amount: string; source: string }>).source;
+    }
     if (this.form.endMode === 'today') this.form.end = todayUtc();
     const settings = readJson<Partial<Settings>>(store, SETTINGS_KEY);
     if (settings) this.settings = { ...this.settings, ...settings };
-    const csv = readJson<{ fileName: string; rows: [string, string][]; errorCount?: number }>(store, CSV_KEY);
-    if (csv) this.setCsv(csv.fileName, new Map(csv.rows.map(([d, p]) => [d, dec(p)])), csv.errorCount ?? 0, [], false);
-    const assets = readJson<{ day: string; list: string[] }>(store, ASSETS_KEY);
-    if (assets?.list?.length) this.assets = assets.list;
+    this.loadCsv();
+    const list = readJson<{ day: string; list: string[]; symbols?: string[] }>(store, ASSETS_KEY);
+    if (list?.list?.length) this.assets = list.list;
+    if (list?.symbols?.length) this.binanceList = new Set(list.symbols);
     // Relance la dernière simulation sans réseau (cache ou cours importés).
     void this.run({ offline: true });
+  }
+
+  private loadCsv() {
+    const raw = readJson<unknown>(this.storage.store, CSV_KEY);
+    if (!raw || typeof raw !== 'object') return;
+    const toCsv = (fileName: string, rows: [string, string][], errorCount = 0): CsvPrices => {
+      const prices = new Map(rows.map(([d, p]) => [d, dec(p)] as const));
+      const dates = [...prices.keys()].sort();
+      return { fileName, prices, first: dates[0], last: dates[dates.length - 1], errorCount };
+    };
+    try {
+      const r = raw as Record<string, unknown>;
+      if (Array.isArray(r.rows) && typeof r.fileName === 'string') {
+        // Format de la v0.2 : un seul fichier, rattaché à la première crypto.
+        const asset = sym(this.form.assets[0]?.asset ?? '');
+        if (asset) this.csv = { [asset]: toCsv(r.fileName, r.rows as [string, string][], Number(r.errorCount) || 0) };
+        this.saveCsv();
+        return;
+      }
+      const out: Record<string, CsvPrices> = {};
+      for (const [asset, v] of Object.entries(r)) {
+        const e = v as { fileName: string; rows: [string, string][]; errorCount?: number };
+        if (e && Array.isArray(e.rows)) out[asset] = toCsv(e.fileName, e.rows, e.errorCount);
+      }
+      this.csv = out;
+    } catch {
+      this.csv = {};
+    }
+  }
+
+  private saveCsv(): boolean {
+    const out: Record<string, { fileName: string; errorCount: number; rows: [string, string][] }> = {};
+    for (const [asset, c] of Object.entries(this.csv)) {
+      out[asset] = { fileName: c.fileName, errorCount: c.errorCount, rows: [...c.prices].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([d, p]) => [d, p.toString()]) };
+    }
+    if (Object.keys(out).length === 0) {
+      removeKey(this.storage.store, CSV_KEY);
+      return true;
+    }
+    return writeJson(this.storage.store, CSV_KEY, out);
   }
 
   saveForm() {
@@ -145,8 +214,86 @@ class AppState {
     this.toastTimer = setTimeout(() => (this.toast = null), 5000);
   }
 
+  // ------------------------------------------------------------------
+  // Lignes de cryptos
+  // ------------------------------------------------------------------
+
+  addAsset() {
+    if (this.form.assets.length >= MAX_ASSETS) return;
+    this.form.assets.push(row('', this.form.assets[this.form.assets.length - 1]?.amount || '50'));
+  }
+
+  removeAsset(id: number) {
+    if (this.form.assets.length <= 1) return;
+    this.form.assets = this.form.assets.filter((a) => a.id !== id);
+  }
+
+  /** Où trouver les cours de ce symbole. */
+  check(asset: string): AssetCheck {
+    const s = sym(asset);
+    if (!s) return 'empty';
+    if (this.csv[s]) return 'csv';
+    if (!this.binanceList) return 'unchecked';
+    if (s === 'USDT' && this.binanceList.has('EURUSDT')) return 'binance';
+    return this.binanceList.has(`${s}EUR`) || this.binanceList.has(`${s}USDT`) ? 'binance' : 'unknown';
+  }
+
+  /** Paires Binance utilisables pour ce symbole (pour l'affichage). */
+  pairsFor(asset: string): string[] {
+    const s = sym(asset);
+    if (!this.binanceList) return [];
+    if (s === 'USDT') return this.binanceList.has('EURUSDT') ? ['EURUSDT'] : [];
+    return [`${s}EUR`, `${s}USDT`].filter((p) => this.binanceList!.has(p));
+  }
+
+  /** Charge la liste des paires Binance (une requête) pour vérifier les symboles saisis. */
+  async verifyOnBinance() {
+    if (!this.settings.allowPriceFetch) {
+      this.pending = 'check';
+      this.status = 'consent';
+      return;
+    }
+    this.checking = true;
+    try {
+      await this.refreshAssets(true);
+      const unknown = this.form.assets.map((a) => sym(a.asset)).filter((s) => s && this.check(s) === 'unknown');
+      this.notify(unknown.length ? `Introuvable sur Binance : ${unknown.join(', ')}.` : 'Toutes les cryptos sont cotées sur Binance.');
+    } catch (e) {
+      this.notify(e instanceof PriceFetchError ? e.message : 'Vérification impossible.');
+    } finally {
+      this.checking = false;
+    }
+  }
+
+  /** Après consentement : reprend l'action interrompue. */
+  async acceptConsent() {
+    this.setConsent(true);
+    if (this.pending === 'check') {
+      this.status = this.result ? 'done' : 'idle';
+      this.pending = 'run';
+      await this.verifyOnBinance();
+    } else await this.run();
+  }
+
+  private async refreshAssets(force = false) {
+    const cached = readJson<{ day: string }>(this.storage.store, ASSETS_KEY);
+    const age = cached ? (Date.parse(todayUtc()) - Date.parse(cached.day)) / 86_400_000 : Infinity;
+    if (!force && this.binanceList && age < ASSETS_MAX_AGE_DAYS) return;
+    const symbols = await this.binance.symbols();
+    const list = await this.binance.assets();
+    this.binanceList = new Set(symbols);
+    if (list.length) this.assets = list;
+    // Seules les paires utiles à la vérification sont gardées (EUR, USDT).
+    const useful = [...symbols].filter((s) => /(EUR|USDT)$/.test(s));
+    writeJson(this.storage.store, ASSETS_KEY, { day: todayUtc(), list, symbols: useful });
+  }
+
+  // ------------------------------------------------------------------
+  // Simulation
+  // ------------------------------------------------------------------
+
   /** Paramètres du moteur à partir du formulaire. */
-  params(): SimulationParams {
+  params(): PortfolioParams {
     const f = this.form;
     const frequency: Frequency =
       f.frequency === 'daily'
@@ -155,8 +302,7 @@ class AppState {
           ? { kind: 'weekly', weekday: Number(f.weekday) }
           : { kind: 'monthly', day: f.monthDay === 'last' ? 'last' : Number(f.monthDay) };
     return {
-      asset: f.asset.trim().toUpperCase(),
-      amountEur: num(f.amount),
+      assets: f.assets.map((a) => ({ asset: sym(a.asset), amountEur: num(a.amount) })),
       frequency,
       start: f.start,
       end: f.endMode === 'today' ? todayUtc() : f.end,
@@ -183,7 +329,7 @@ class AppState {
    */
   async run(options: { offline?: boolean } = {}) {
     const params = this.params();
-    const errors = validateParams(params);
+    const errors = validatePortfolio(params);
     if (params.end > todayUtc()) errors.push('La date de fin ne peut pas être dans le futur.');
     if (errors.length) {
       if (options.offline) return;
@@ -193,117 +339,109 @@ class AppState {
     }
     this.errors = [];
 
-    let prices: Map<string, Dec>;
-    let info: PriceInfo;
-    if (this.form.source === 'csv') {
-      if (!this.csv) {
-        if (options.offline) return;
-        this.errors = ['Importez d’abord un fichier de prix.'];
-        this.status = 'error';
-        return;
+    const prices = new Map<string, Map<string, Dec>>();
+    const byAsset: Record<string, AssetPriceInfo> = {};
+    const toFetch: string[] = [];
+    for (const { asset } of params.assets) {
+      const csv = this.csv[asset];
+      if (csv) {
+        prices.set(asset, csv.prices);
+        byAsset[asset] = { source: 'csv', fileName: csv.fileName };
+        continue;
       }
-      prices = this.csv.prices;
-      info = { source: 'csv' };
-    } else {
-      const cached = readCachedSeries(this.storage.store, params.asset, params.start, params.end);
+      const cached = readCachedSeries(this.storage.store, asset, params.start, params.end);
       if (cached) {
-        prices = cached.prices;
-        info = { source: 'binance', routes: cached.routeCounts, fromCache: true };
-      } else if (options.offline) {
-        return;
-      } else if (!this.settings.allowPriceFetch) {
+        prices.set(asset, cached.prices);
+        byAsset[asset] = { source: 'binance', routes: cached.routeCounts, fromCache: true };
+      } else toFetch.push(asset);
+    }
+
+    let noEcb = false;
+    if (toFetch.length) {
+      if (options.offline) return;
+      if (!this.settings.allowPriceFetch) {
+        this.pending = 'run';
         this.status = 'consent';
         return;
-      } else {
-        this.status = 'loading';
-        try {
-          const ecb = await this.loadEcb();
-          const series = await this.binance.eurSeries(params.asset, params.start, params.end, ecb);
-          writeCachedSeries(this.storage.store, series, params.start, params.end);
-          prices = series.prices;
-          info = { source: 'binance', routes: series.routeCounts, noEcb: ecb === null };
-          void this.refreshAssets();
-        } catch (e) {
-          this.errors = [e instanceof PriceFetchError ? e.message : `Chargement des cours impossible : ${String(e)}`];
-          this.status = 'error';
-          return;
+      }
+      this.status = 'loading';
+      try {
+        const ecb = await this.loadEcb();
+        noEcb = ecb === null;
+        for (const [i, asset] of toFetch.entries()) {
+          this.progress = toFetch.length > 1 ? `${asset} (${i + 1} sur ${toFetch.length})` : asset;
+          const series = await this.binance.eurSeries(asset, params.start, params.end, ecb);
+          if (series.prices.size > 0) writeCachedSeries(this.storage.store, series, params.start, params.end);
+          prices.set(asset, series.prices);
+          byAsset[asset] = { source: 'binance', routes: series.routeCounts };
         }
+        void this.refreshAssets().catch(() => undefined);
+      } catch (e) {
+        this.errors = [e instanceof PriceFetchError ? e.message : `Chargement des cours impossible : ${String(e)}`];
+        this.status = 'error';
+        return;
+      } finally {
+        this.progress = '';
       }
     }
 
-    const r = simulate(params, prices);
-    if (!r.ok) {
+    const empty = params.assets.filter(({ asset }) => byAsset[asset]?.source === 'binance' && (prices.get(asset)?.size ?? 0) === 0).map((a) => a.asset);
+    if (empty.length) {
       if (options.offline) return;
-      const hint =
-        this.form.source === 'binance' && prices.size === 0
-          ? [`Binance n’a aucun cours pour ${params.asset} sur cette période (actif inconnu, ou coté après la date de fin). Vérifiez le symbole ou importez un fichier de prix.`]
-          : [];
-      this.errors = hint.length ? hint : r.errors;
+      this.errors = empty.map(
+        (a) => `${a} : Binance n’a aucun cours sur cette période (symbole inconnu, ou coté après la date de fin). Vérifiez le symbole ou importez un fichier de prix pour cette crypto.`,
+      );
       this.status = 'error';
-      this.result = null;
       return;
     }
-    info.first = [...prices.keys()].filter((d) => d >= params.start && d <= params.end).sort()[0];
-    this.usedPrices = new Map([...prices].filter(([d]) => d >= params.start && d <= params.end));
-    this.priceInfo = info;
+
+    const r = simulatePortfolio(params, prices);
+    if (!r.ok) {
+      if (options.offline) return;
+      this.errors = r.errors;
+      this.status = 'error';
+      return;
+    }
+    this.usedPrices = new Map(
+      params.assets.map(({ asset }) => [asset, new Map([...(prices.get(asset) ?? [])].filter(([d]) => d >= params.start && d <= params.end))]),
+    );
+    this.priceInfo = { byAsset, noEcb };
     this.result = r;
     this.status = 'done';
   }
 
-  private async refreshAssets() {
-    try {
-      const list = await this.binance.assets();
-      if (list.length) {
-        this.assets = list;
-        writeJson(this.storage.store, ASSETS_KEY, { day: todayUtc(), list });
-      }
-    } catch {
-      // liste par défaut conservée
-    }
-  }
-
-  private setCsv(fileName: string, prices: Map<string, Dec>, errorCount: number, errors: string[], persist = true) {
-    const dates = [...prices.keys()].sort();
-    this.csv = { fileName, prices, first: dates[0], last: dates[dates.length - 1], errorCount, errors };
-    if (persist) {
-      const ok = writeJson(this.storage.store, CSV_KEY, { fileName, errorCount, rows: dates.map((d) => [d, prices.get(d)!.toString()]) });
-      if (!ok) this.notify('Fichier de prix chargé, mais trop volumineux pour être gardé sur cet appareil.');
-    }
-  }
-
-  /** Importe un fichier CSV de prix ; renvoie un message d'erreur ou null. */
-  importCsv(fileName: string, text: string): string | null {
+  /** Importe un fichier CSV de prix pour une crypto ; renvoie un message d'erreur ou null. */
+  importCsv(asset: string, fileName: string, text: string): string | null {
+    const s = sym(asset);
+    if (!s) return 'Saisissez d’abord le symbole de la crypto.';
     try {
       const r = parsePriceCsv(text);
       if (r.prices.size === 0) return `Aucun cours lisible dans ${fileName}.${r.errors.length ? ` ${r.errors[0]}.` : ''}`;
-      this.setCsv(fileName, r.prices, r.errorCount, r.errors);
-      this.form.source = 'csv';
-      this.saveForm();
+      const dates = [...r.prices.keys()].sort();
+      this.csv = { ...this.csv, [s]: { fileName, prices: r.prices, first: dates[0], last: dates[dates.length - 1], errorCount: r.errorCount } };
+      if (!this.saveCsv()) this.notify('Fichier de prix chargé, mais trop volumineux pour être gardé sur cet appareil.');
       return null;
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
     }
   }
 
-  clearCsv() {
-    this.csv = null;
-    removeKey(this.storage.store, CSV_KEY);
-    if (this.form.source === 'csv') this.form.source = 'binance';
+  clearCsv(asset: string) {
+    const rest = { ...this.csv };
+    delete rest[sym(asset)];
+    this.csv = rest;
+    this.saveCsv();
   }
 
   backupJson(): string | null {
     if (!this.result) return null;
-    const saved = makeBackup({
-      params: this.result.params,
-      endMode: this.form.endMode,
-      priceSource: this.form.source,
-      priceFile: this.form.source === 'csv' ? this.csv?.fileName : undefined,
-      prices: this.usedPrices,
-    });
+    const priceFiles: Record<string, string> = {};
+    for (const [asset, info] of Object.entries(this.priceInfo?.byAsset ?? {})) if (info.source === 'csv' && info.fileName) priceFiles[asset] = info.fileName;
+    const saved = makeBackup({ params: this.result.params, endMode: this.form.endMode, prices: this.usedPrices, priceFiles });
     return JSON.stringify(saved, null, 1);
   }
 
-  /** Ouvre une sauvegarde : ses cours deviennent la source « fichier », puis la simulation est relancée. */
+  /** Ouvre une sauvegarde : ses cours deviennent des fichiers importés, puis la simulation est relancée. */
   async openBackup(fileName: string, text: string): Promise<string | null> {
     try {
       const saved = readBackup(text);
@@ -311,8 +449,7 @@ class AppState {
       const f = p.frequency;
       this.form = {
         ...this.form,
-        asset: p.asset,
-        amount: p.amountEur.replace('.', ','),
+        assets: p.assets.map((a) => row(a.asset, a.amountEur.replace('.', ','))),
         frequency: f.kind,
         weekday: f.kind === 'weekly' ? f.weekday : this.form.weekday,
         monthDay: f.kind === 'monthly' ? String(f.day) : this.form.monthDay,
@@ -322,9 +459,14 @@ class AppState {
         feeKind: p.fee.kind,
         feeValue: p.fee.value.replace('.', ','),
         initial: (p.initialCapitalEur ?? '').replace('.', ','),
-        source: 'csv',
       };
-      this.setCsv(saved.priceFile ?? `sauvegarde ${fileName}`, backupPrices(saved), 0, []);
+      const csv = { ...this.csv };
+      for (const [asset, series] of backupPrices(saved)) {
+        const dates = [...series.keys()].sort();
+        csv[asset] = { fileName: saved.priceFiles?.[asset] ?? `sauvegarde ${fileName}`, prices: series, first: dates[0], last: dates[dates.length - 1], errorCount: 0 };
+      }
+      this.csv = csv;
+      this.saveCsv();
       this.saveForm();
       await this.run();
       return null;
