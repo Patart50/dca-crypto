@@ -6,6 +6,8 @@
   import Purchases from './lib/ui/Purchases.svelte';
   import ExportPanel from './lib/ui/ExportPanel.svelte';
   import ThemeToggle from './lib/ui/ThemeToggle.svelte';
+  import Support from './lib/ui/Support.svelte';
+  import { AUTHOR } from './lib/support';
 
   const tabs = [
     { id: 'synthese', label: 'Synthèse' },
@@ -56,7 +58,7 @@
       <a class="brand-name" href="./" aria-label="dca-crypto, accueil">dca-crypto</a>
       <span class="brand-tag"
         ><span class="tagline">Simulateur d’achats réguliers en crypto ·&nbsp;</span>par
-        <a href="https://github.com/Patart50" target="_blank" rel="noopener author">Arnaud (Patart50)</a></span
+        <a href={AUTHOR.url} target="_blank" rel="noopener author">{AUTHOR.name} ({AUTHOR.handle})</a></span
       >
     </div>
     <div class="top-actions">
@@ -131,8 +133,11 @@
 <footer class="foot">
   <p>
     Simulation sur données passées, pas un conseil en investissement. Pour la fiscalité, exportez vers
-    <a href="https://patart50.github.io/pmpa-crypto/" target="_blank" rel="noopener">pmpa-crypto</a>. Créé par <a href="https://github.com/Patart50" target="_blank" rel="noopener author">Arnaud (Patart50)</a>. Code source libre (AGPL-3.0) sur
+    <a href="https://patart50.github.io/pmpa-crypto/" target="_blank" rel="noopener">pmpa-crypto</a>. Code source libre (AGPL-3.0) sur
     <a href="https://github.com/Patart50/dca-crypto" rel="noopener" target="_blank">GitHub</a> · Taux de change © BCE · v{__APP_VERSION__}
+  </p>
+  <p class="credit">
+    Créé par <a href={AUTHOR.url} target="_blank" rel="noopener author">{AUTHOR.name} ({AUTHOR.handle})</a> · <Support />
   </p>
 </footer>
 
@@ -278,9 +283,12 @@
     font-size: 0.82rem;
     color: var(--muted);
   }
-  .foot p {
+  .foot p:first-child {
     border-top: 1px solid var(--rule);
     padding-top: 1.5rem;
+  }
+  .credit {
+    margin-top: 0.4rem;
   }
   .toast {
     position: fixed;
