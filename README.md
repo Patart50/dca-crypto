@@ -7,7 +7,15 @@ Simulateur de stratégie DCA (achats réguliers) en crypto, **100 % local**, en 
 - Qu'aurait donné le même montant investi en une seule fois au départ ?
 - Export des achats simulés vers [pmpa-crypto](https://github.com/Patart50/pmpa-crypto), pour le calcul fiscal.
 
-Site : https://patart50.github.io/dca-crypto/
+**Utiliser l'outil : https://patart50.github.io/dca-crypto/** (rien à installer, fonctionne aussi hors ligne une fois chargé).
+
+## En trois étapes
+
+1. **Votre stratégie** : une ou plusieurs cryptos avec un montant chacune, la fréquence (chaque jour, semaine ou mois), la date de départ, vos frais.
+2. **Lancer la simulation** : la première fois, l'outil vous demande l'autorisation de lire les cours publics de Binance. Vous pouvez refuser et importer vos propres prix (« Prix CSV » sur la ligne de la crypto).
+3. **Lire le résultat** : valeur atteinte, prix moyen, comparaison avec un achat unique au départ, graphiques, détail de chaque achat. Onglet Export : fichier pour pmpa-crypto, pour un tableur, ou sauvegarde de la simulation.
+
+La page « À propos et limites » (lien en pied de page) détaille la méthode et ce que l'outil ne fait pas.
 
 ## Principes
 
@@ -15,7 +23,7 @@ Site : https://patart50.github.io/dca-crypto/
 - Les cours historiques viennent de l'API publique de Binance **sur demande explicite** (seuls des noms de paires et des dates sont envoyés), ou d'un fichier CSV de prix que vous fournissez.
 - Avant 2020 (pas de paire en euros sur Binance), conversion des cours en USDT avec les taux de référence EUR/USD de la Banque centrale européenne, embarqués dans l'application.
 - Aucun impôt n'est calculé : un DCA sans vente n'est pas imposable. Pour simuler une vente, importez l'export dans pmpa-crypto.
-- Ceci est une simulation sur données passées, pas un conseil en investissement.
+- Ceci est une simulation sur données passées, pas un conseil en investissement : le résultat dépend entièrement de la période choisie.
 
 ## Développement
 

@@ -1,4 +1,4 @@
-# Spécification — dca-crypto v0.3
+# Spécification — dca-crypto v1.0
 
 Simulateur de stratégie DCA (achats réguliers), 100 % local, en français. Projet frère de [pmpa-crypto](https://github.com/Patart50/pmpa-crypto). Toute convention de calcul est consignée dans [DECISIONS.md](DECISIONS.md).
 
@@ -51,23 +51,23 @@ Code : `src/lib/prices/`.
 - **Sauvegarde JSON** (`src/lib/state/backup.ts`, D-013, D-019) : paramètres et cours par crypto, réouverture hors ligne ; version 1 migrée.
 - **Stockage local** (`src/lib/state/storage.ts`) : formulaire, réglages (thème, consentement), cours importés, cache Binance. Repli en mémoire si le navigateur bloque le stockage, avec un avertissement.
 
-## 6. Interface (J2)
+## 6. Interface
 
-Une page : formulaire en haut, résultats dessous en trois onglets. État : `src/lib/state/app.svelte.ts`.
+Une page : formulaire en haut, résultats dessous en trois onglets ; page « À propos et limites » sur `#a-propos` (`About.svelte`). État : `src/lib/state/app.svelte.ts`.
 
 - **Paramètres** (`ParamsForm.svelte`) : lignes crypto + montant (ajout, retrait, part de chaque achat, total), statut de chaque symbole et bouton « Prix CSV » par ligne, « Vérifier sur Binance » ; fréquence, début, fin (aujourd'hui ou une date), frais, capital de départ. Consentement Binance dans un encart (D-011). Erreurs de saisie listées, nominatives par crypto.
 - **Synthèse** (`Results.svelte`) : phrase de rappel de la stratégie, chiffres clés (valeur, investi ; une crypto : prix moyen, quantité ; plusieurs : meilleure et moins bonne crypto), tableau « Par crypto » (plusieurs cryptos), comparaison DCA / achat unique avec verdict et mise en garde, graphiques « Valeur du portefeuille » (toutes cryptos) et « Prix moyen et cours » (crypto choisie dans une liste) (`LineChart.svelte`, D-014), notes sur les sources (chemins de conversion, cache, échéances sans cours, cours du jour non clos).
 - **Achats** (`Purchases.svelte`) : tableau trié du plus récent au plus ancien (inversable), colonne et filtre par crypto, plus haut et plus bas signalés, affichage par tranches, échéances sans cours.
 - **Export** (`ExportPanel.svelte`) : pmpa-crypto, tableur, sauvegarde et réouverture.
 - En-tête : « par Arnaud (Patart50) » sous le titre (D-020). Pied de page : « Créé par Arnaud (Patart50) · Soutenir le projet », fenêtre de soutien avec GitHub Sponsors et adresses Bitcoin / EVM, QR codes locaux (`Support.svelte`, `support.ts`, D-021).
-- Thème auto / clair / sombre, hors ligne (service worker), 375 px sans débordement, WCAG 2 AA vérifié avec axe-core.
+- Thème auto / clair / sombre, hors ligne (service worker, vérifié), 375 px sans débordement, lien d'évitement, annonce de fin de simulation, WCAG 2 AA vérifié avec axe-core.
 
 ## 7. Jalons
 
 - **J1** ✅ Squelette, moteur de simulation, prix (Binance, BCE, CSV), export pmpa-crypto, CI et déploiement.
 - **J2** ✅ Interface : paramètres, résultats, graphiques, tableau, export, sauvegarde, consentement réseau, cache.
 - **v0.3** ✅ Plusieurs cryptos, vérification Binance, prix CSV par crypto, auteur.
-- **J3** Accessibilité, hors ligne vérifié, page « À propos et limites », v1.0.
+- **J3** ✅ v1.0 : page « À propos et limites », hors ligne vérifié, accessibilité (D-022).
 
 ## 8. Hors périmètre MVP
 

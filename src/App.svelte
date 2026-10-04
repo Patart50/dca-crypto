@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { app } from './lib/state/app.svelte';
   import ParamsForm from './lib/ui/ParamsForm.svelte';
   import Results from './lib/ui/Results.svelte';
@@ -7,7 +7,9 @@
   import ExportPanel from './lib/ui/ExportPanel.svelte';
   import ThemeToggle from './lib/ui/ThemeToggle.svelte';
   import Support from './lib/ui/Support.svelte';
+  import About from './lib/ui/About.svelte';
   import { AUTHOR } from './lib/support';
+  import { eur } from './lib/core/format';
 
   const tabs = [
     { id: 'synthese', label: 'Synthèse' },
@@ -20,7 +22,22 @@
   let backupInput: HTMLInputElement | undefined = $state();
   let backupError = $state<string | null>(null);
 
-  onMount(() => app.init());
+  // Deux vues : le simulateur et la page « À propos et limites » (#a-propos).
+  const readView = () => (location.hash === '#a-propos' ? 'a-propos' : 'simulateur');
+  let view = $state<'simulateur' | 'a-propos'>(readView());
+
+  onMount(() => {
+    app.init();
+    const onHash = () => {
+      view = readView();
+      if (view === 'a-propos') {
+        scrollTo(0, 0);
+        void tick().then(() => document.getElementById('about-title')?.focus());
+      }
+    };
+    addEventListener('hashchange', onHash);
+    return () => removeEventListener('hashchange', onHash);
+  });
 
   // Le formulaire est gardé sur l'appareil à chaque modification.
   $effect(() => {
@@ -43,6 +60,14 @@
     document.getElementById(`tab-${next.id}`)?.focus();
   }
 
+  const announce = $derived(
+    app.status === 'loading'
+      ? 'Chargement des cours…'
+      : app.status === 'done' && app.result
+        ? `Simulation terminée : valeur ${eur(app.result.dca.value)} pour ${eur(app.result.dca.invested)} investis.`
+        : '',
+  );
+
   async function onBackup(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
@@ -51,6 +76,8 @@
     input.value = '';
   }
 </script>
+
+<a class="skip" href="#contenu">Aller au contenu</a>
 
 <header class="top">
   <div class="top-inner">
@@ -73,60 +100,67 @@
   </div>
 </header>
 
-<main>
+<main id="contenu" tabindex="-1">
   {#if !app.persistent}
     <p class="notice" role="status">
       <span><strong>Stockage indisponible.</strong> Ce navigateur bloque le stockage local (navigation privée ?) : vos réglages et les cours chargés seront perdus à la fermeture.</span>
     </p>
   {/if}
 
-  <ParamsForm />
+  <!-- Annonce l'état de la simulation aux lecteurs d'écran. -->
+  <p class="sr-only" aria-live="polite">{announce}</p>
 
-  {#if app.result}
-    <section id="resultats" class="out" aria-labelledby="res-title" class:stale={app.status === 'loading'}>
-      <div class="out-head">
-        <h2 id="res-title">Résultats</h2>
-        <div class="tabs" role="tablist" aria-label="Vues des résultats">
-          {#each tabs as t, i (t.id)}
-            <button
-              id={`tab-${t.id}`}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              aria-controls={`panel-${t.id}`}
-              tabindex={tab === t.id ? 0 : -1}
-              onclick={() => (tab = t.id)}
-              onkeydown={(e) => onTabKey(e, i)}
-            >
-              {t.label}
-              {#if t.id === 'achats'}<span class="count num">{app.result.purchases.length}</span>{/if}
-            </button>
-          {/each}
+  {#if view === 'a-propos'}
+    <About />
+  {:else}
+    <ParamsForm />
+
+    {#if app.result}
+      <section id="resultats" class="out" aria-labelledby="res-title" class:stale={app.status === 'loading'}>
+        <div class="out-head">
+          <h2 id="res-title">Résultats</h2>
+          <div class="tabs" role="tablist" aria-label="Vues des résultats">
+            {#each tabs as t, i (t.id)}
+              <button
+                id={`tab-${t.id}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                aria-controls={`panel-${t.id}`}
+                tabindex={tab === t.id ? 0 : -1}
+                onclick={() => (tab = t.id)}
+                onkeydown={(e) => onTabKey(e, i)}
+              >
+                {t.label}
+                {#if t.id === 'achats'}<span class="count num">{app.result.purchases.length}</span>{/if}
+              </button>
+            {/each}
+          </div>
         </div>
-      </div>
-      <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} tabindex="-1">
-        {#if tab === 'synthese'}
-          <Results result={app.result} />
-        {:else if tab === 'achats'}
-          <Purchases result={app.result} />
-        {:else}
-          <ExportPanel result={app.result} />
-        {/if}
-      </div>
-    </section>
-  {:else if app.status !== 'loading'}
-    <section class="empty" aria-label="Pour commencer">
-      <p>
-        Choisissez une ou plusieurs cryptos, un montant pour chacune et un rythme, puis lancez la simulation : vous verrez ce que vos achats réguliers auraient donné, comparés à un
-        achat unique au départ.
-      </p>
-      <p class="muted">
-        Vous avez une sauvegarde ?
-        <input bind:this={backupInput} type="file" accept=".json,application/json" class="sr-only" onchange={onBackup} tabindex="-1" aria-label="Fichier de sauvegarde" />
-        <button type="button" class="link" onclick={() => backupInput?.click()}>Ouvrir une simulation sauvegardée</button>
-      </p>
-      {#if backupError}<p class="loss" role="alert">{backupError}</p>{/if}
-    </section>
+        <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} tabindex="-1">
+          {#if tab === 'synthese'}
+            <Results result={app.result} />
+          {:else if tab === 'achats'}
+            <Purchases result={app.result} />
+          {:else}
+            <ExportPanel result={app.result} />
+          {/if}
+        </div>
+      </section>
+    {:else if app.status !== 'loading'}
+      <section class="empty" aria-label="Pour commencer">
+        <p>
+          Choisissez une ou plusieurs cryptos, un montant pour chacune et un rythme, puis lancez la simulation : vous verrez ce que vos achats réguliers auraient donné, comparés à un
+          achat unique au départ.
+        </p>
+        <p class="muted">
+          Vous avez une sauvegarde ?
+          <input bind:this={backupInput} type="file" accept=".json,application/json" class="sr-only" onchange={onBackup} tabindex="-1" aria-label="Fichier de sauvegarde" />
+          <button type="button" class="link" onclick={() => backupInput?.click()}>Ouvrir une simulation sauvegardée</button>
+        </p>
+        {#if backupError}<p class="loss" role="alert">{backupError}</p>{/if}
+      </section>
+    {/if}
   {/if}
 </main>
 
@@ -134,7 +168,8 @@
   <p>
     Simulation sur données passées, pas un conseil en investissement. Pour la fiscalité, exportez vers
     <a href="https://patart50.github.io/pmpa-crypto/" target="_blank" rel="noopener">pmpa-crypto</a>. Code source libre (AGPL-3.0) sur
-    <a href="https://github.com/Patart50/dca-crypto" rel="noopener" target="_blank">GitHub</a> · Taux de change © BCE · v{__APP_VERSION__}
+    <a href="https://github.com/Patart50/dca-crypto" rel="noopener" target="_blank">GitHub</a> · Taux de change © BCE ·
+    <a href="#a-propos">À propos et limites</a> · v{__APP_VERSION__}
   </p>
   <p class="credit">
     Créé par <a href={AUTHOR.url} target="_blank" rel="noopener author">{AUTHOR.name} ({AUTHOR.handle})</a> · <Support />
@@ -146,6 +181,23 @@
 {/if}
 
 <style>
+  .skip {
+    position: absolute;
+    left: 1rem;
+    top: -3rem;
+    z-index: 100;
+    background: var(--accent);
+    color: var(--on-accent);
+    padding: 0.5rem 0.8rem;
+    border-radius: var(--radius);
+    font-weight: 600;
+  }
+  .skip:focus {
+    top: 0.5rem;
+  }
+  main:focus {
+    outline: none;
+  }
   .top {
     background: var(--surface);
     border-bottom: 1px solid var(--rule);
