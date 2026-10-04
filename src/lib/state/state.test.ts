@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dec, type Dec } from '../core/money';
 import { dateFr, duration, eur, eurPrice, eurSigned, monthYear, pct, qty } from '../core/format';
-import { simulate, type SimulationParams, type SimulationResult } from '../core/simulate';
+import { simulatePortfolio, type PortfolioParams, type PortfolioResult } from '../core/portfolio';
 import { readCachedSeries, writeCachedSeries, cacheKey } from '../prices/cache';
 import { combineEurSeries } from '../prices/binance';
 import { purchasesCsv, summaryCsv } from '../export/results';
@@ -92,51 +92,78 @@ describe('cache des cours', () => {
   });
 });
 
-const params: SimulationParams = {
-  asset: 'ETH',
-  amountEur: '50',
+const params: PortfolioParams = {
+  assets: [
+    { asset: 'ETH', amountEur: '50' },
+    { asset: 'SOL', amountEur: '25' },
+  ],
   frequency: { kind: 'monthly', day: 'last' },
   start: '2024-01-01',
   end: '2024-02-29',
   fee: { kind: 'fixed', value: '1' },
 };
-const prices = m({ '2024-01-31': '2000', '2024-02-29': '3000' });
-const result = simulate(params, prices) as SimulationResult;
+const prices = new Map([
+  ['ETH', m({ '2024-01-31': '2000', '2024-02-29': '3000' })],
+  ['SOL', m({ '2024-01-31': '80', '2024-02-29': '100' })],
+]);
+const result = simulatePortfolio(params, prices) as PortfolioResult;
 
 describe('sauvegarde JSON', () => {
-  it('aller-retour sans perte', () => {
-    const saved = makeBackup({ params, endMode: 'date', priceSource: 'csv', priceFile: 'eth.csv', prices, now: new Date('2024-03-01T00:00:00Z') });
+  it('aller-retour sans perte, plusieurs cryptos', () => {
+    const saved = makeBackup({ params, endMode: 'date', prices, priceFiles: { SOL: 'sol.csv' }, now: new Date('2024-03-01T00:00:00Z') });
     const back = readBackup(JSON.stringify(saved));
     expect(back).toEqual(saved);
-    expect(backupPrices(back).get('2024-02-29')?.toString()).toBe('3000');
+    expect(backupPrices(back).get('SOL')?.get('2024-02-29')?.toString()).toBe('100');
+  });
+
+  it('migre une sauvegarde de version 1 (une crypto)', () => {
+    const v1 = {
+      app: 'dca-crypto',
+      schemaVersion: 1,
+      exportedAt: '2026-10-04T00:00:00Z',
+      params: { asset: 'btc', amountEur: '100', frequency: { kind: 'daily' }, start: '2024-01-01', end: '2024-01-02', fee: { kind: 'percent', value: '0.1' } },
+      endMode: 'date',
+      priceSource: 'csv',
+      priceFile: 'btc.csv',
+      prices: [['2024-01-01', '40000']],
+    };
+    const back = readBackup(JSON.stringify(v1));
+    expect(back.schemaVersion).toBe(2);
+    expect(back.params.assets).toEqual([{ asset: 'BTC', amountEur: '100' }]);
+    expect(back.prices.BTC).toEqual([['2024-01-01', '40000']]);
+    expect(back.priceFiles).toEqual({ BTC: 'btc.csv' });
   });
 
   it('refuse un autre fichier, une version plus récente, des cours illisibles', () => {
     expect(() => readBackup('pas du json')).toThrow(BackupError);
     expect(() => readBackup(JSON.stringify({ app: 'pmpa-crypto' }))).toThrow(/pas une sauvegarde/);
-    const saved = makeBackup({ params, endMode: 'date', priceSource: 'csv', prices });
-    expect(() => readBackup(JSON.stringify({ ...saved, schemaVersion: 2 }))).toThrow(/plus récente/);
-    expect(() => readBackup(JSON.stringify({ ...saved, prices: [['2024-13-01', '1']] }))).toThrow(/illisibles/);
-    expect(() => readBackup(JSON.stringify({ ...saved, prices: [['2024-01-01', '-1']] }))).toThrow(/illisible/);
+    const saved = makeBackup({ params, endMode: 'date', prices });
+    expect(() => readBackup(JSON.stringify({ ...saved, schemaVersion: 3 }))).toThrow(/plus récente/);
+    expect(() => readBackup(JSON.stringify({ ...saved, prices: { ETH: [['2024-13-01', '1']] } }))).toThrow(/illisibles/);
+    expect(() => readBackup(JSON.stringify({ ...saved, prices: { ETH: [['2024-01-01', '-1']] } }))).toThrow(/illisible/);
     expect(() => readBackup(JSON.stringify({ ...saved, params: { ...params, fee: { kind: 'x' } } }))).toThrow(/Paramètres/);
+    expect(() => readBackup(JSON.stringify({ ...saved, params: { ...params, assets: [] } }))).toThrow(/cryptos/);
   });
 });
 
 describe('exports CSV pour tableur', () => {
-  it('tableau des achats : point-virgule, virgule décimale, BOM', () => {
+  it('tableau des achats : colonne actif, point-virgule, virgule décimale, BOM', () => {
     const text = purchasesCsv(result);
     expect(text.charCodeAt(0)).toBe(0xfeff);
     const t = parseCsv(text);
     expect(t.delimiter).toBe(';');
-    expect(t.rows).toHaveLength(2);
-    expect(t.rows[0].slice(0, 6)).toEqual(['31/01/2024', 'Achat régulier', '50,00', '1,00', '2000', '0,0245']);
+    expect(t.rows).toHaveLength(4);
+    expect(t.rows[0].slice(0, 7)).toEqual(['31/01/2024', 'ETH', 'Achat régulier', '50,00', '1,00', '2000', '0,0245']);
+    expect(t.rows[1][1]).toBe('SOL');
   });
 
-  it('synthèse : DCA et achat unique côte à côte', () => {
+  it('synthèse : une ligne par crypto, puis DCA et achat unique', () => {
     const t = parseCsv(summaryCsv(result));
     const row = (label: string) => t.rows.find((r) => r[0] === label);
-    expect(row('Total investi (€)')).toEqual(['Total investi (€)', '100,00', '100,00']);
-    expect(row('Frais (€)')).toEqual(['Frais (€)', '2,00', '1,00']);
+    expect(row('Montant par échéance (€)')?.[1]).toBe('75,00');
+    expect(row('SOL')?.slice(0, 3)).toEqual(['SOL', '25,00', '50,00']);
+    expect(row('Total investi (€)')?.slice(0, 3)).toEqual(['Total investi (€)', '150,00', '150,00']);
+    expect(row('Frais (€)')?.slice(0, 3)).toEqual(['Frais (€)', '4,00', '2,00']);
     expect(row('Fréquence')?.[1]).toBe('Mensuelle (dernier jour)');
   });
 });

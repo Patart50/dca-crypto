@@ -1,15 +1,15 @@
 <script lang="ts">
   import { app } from '../state/app.svelte';
-  import type { SimulationResult } from '../core/simulate';
+  import type { PortfolioResult } from '../core/portfolio';
   import { pmpaCsv } from '../export/pmpa';
   import { purchasesCsv, summaryCsv } from '../export/results';
 
-  let { result }: { result: SimulationResult } = $props();
+  let { result }: { result: PortfolioResult } = $props();
 
   let backupInput: HTMLInputElement | undefined = $state();
   let backupError = $state<string | null>(null);
 
-  const stem = $derived(`dca-${result.params.asset.toLowerCase()}-${result.params.start}-${result.endDate}`);
+  const stem = $derived(`dca-${result.assets.map((a) => a.asset.toLowerCase()).join('-')}-${result.params.start}-${result.endDate}`);
 
   function download(name: string, content: string, type: string) {
     const url = URL.createObjectURL(new Blob([content], { type }));
@@ -45,7 +45,7 @@
       Importez le fichier dans l’onglet Transactions pour suivre ce portefeuille fictif ou simuler l’impôt d’une vente.
     </p>
     <p class="muted small">Plateforme « Simulation dca-crypto ». Réexporter la même simulation n’ajoute pas de doublon à l’import.</p>
-    <button class="btn btn-primary" type="button" onclick={() => download(`${stem}-pmpa.csv`, pmpaCsv(result), 'text/csv;charset=utf-8')}>
+    <button class="btn btn-primary" type="button" onclick={() => download(`${stem}-pmpa.csv`, pmpaCsv(result.assets.map((a) => a.result)), 'text/csv;charset=utf-8')}>
       Exporter pour pmpa-crypto (CSV)
     </button>
   </div>

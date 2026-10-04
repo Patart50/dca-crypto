@@ -51,7 +51,8 @@ function fnv(text: string): string {
   return (h >>> 0).toString(36);
 }
 
-export function pmpaCsv(result: SimulationResult): string {
+/** Lignes d'un actif simulé. */
+function pmpaRows(result: SimulationResult): string[][] {
   const p = result.params;
   const asset = p.asset.trim().toUpperCase();
   const signature = fnv(JSON.stringify([asset, p.amountEur, p.fee, p.frequency, p.initialCapitalEur ?? '']));
@@ -79,5 +80,12 @@ export function pmpaCsv(result: SimulationResult): string {
     };
     return PMPA_HEADERS.map((h) => row[h]);
   });
+  return rows;
+}
+
+/** Export d'un ou plusieurs actifs simulés, triés par date. */
+export function pmpaCsv(results: SimulationResult | SimulationResult[]): string {
+  const list = Array.isArray(results) ? results : [results];
+  const rows = list.flatMap(pmpaRows).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return toCsv([...PMPA_HEADERS], rows);
 }

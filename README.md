@@ -2,7 +2,8 @@
 
 Simulateur de stratégie DCA (achats réguliers) en crypto, **100 % local**, en français.
 
-- Combien aurait-on accumulé en achetant 100 € de BTC chaque mois depuis 2019 ? À quel prix moyen ? Pour quelle valeur aujourd'hui ?
+- Combien aurait-on accumulé en achetant 100 € de BTC et 50 € d'ETH chaque mois depuis 2019 ? À quel prix moyen ? Pour quelle valeur aujourd'hui ?
+- Jusqu'à 10 cryptos, chacune avec son montant ; un symbole saisi à la main est vérifié sur Binance, ou simulé avec vos propres prix.
 - Qu'aurait donné le même montant investi en une seule fois au départ ?
 - Export des achats simulés vers [pmpa-crypto](https://github.com/Patart50/pmpa-crypto), pour le calcul fiscal.
 
@@ -28,6 +29,10 @@ npm run update:ecb   # met à jour les taux EUR/USD de la BCE embarqués
 ```
 
 Spécification : [docs/SPEC.md](docs/SPEC.md) · Décisions : [docs/DECISIONS.md](docs/DECISIONS.md)
+
+## Auteur
+
+Arnaud ([Patart50](https://github.com/Patart50)).
 
 ## Licence
 

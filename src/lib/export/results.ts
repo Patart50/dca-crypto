@@ -3,11 +3,11 @@
  * décimale, BOM UTF-8 (ouverture directe dans Excel ou LibreOffice).
  */
 import { D, type Dec } from '../core/money';
-import type { SimulationResult } from '../core/simulate';
+import type { PortfolioResult } from '../core/portfolio';
 import { dateFr } from '../core/format';
 import { toCsv } from '../csv/csv';
 
-const BOM = '\uFEFF';
+const BOM = '﻿';
 
 /**
  * Nombre au format français, sans séparateur de milliers (lisible par un tableur).
@@ -18,20 +18,22 @@ export function frNumber(d: Dec, places: number): string {
   return (places <= 2 ? r.toFixed(places) : r.toFixed()).replace('.', ',');
 }
 
-export function purchasesCsv(result: SimulationResult): string {
+export function purchasesCsv(result: PortfolioResult): string {
   const headers = [
     'Date',
+    'Actif',
     'Type',
     'Montant décaissé (€)',
     'Frais (€)',
     'Cours (€)',
     'Quantité',
-    'Total investi (€)',
+    'Total investi sur l’actif (€)',
     'Quantité cumulée',
     'Prix moyen après achat (€)',
   ];
   const rows = result.purchases.map((p) => [
     dateFr(p.date),
+    p.asset,
     p.kind === 'initial' ? 'Capital de départ' : 'Achat régulier',
     frNumber(p.amountEur, 2),
     frNumber(p.feeEur, 2),
@@ -44,8 +46,7 @@ export function purchasesCsv(result: SimulationResult): string {
   return BOM + toCsv(headers, rows, ';');
 }
 
-export function summaryCsv(result: SimulationResult): string {
-  const { dca, lumpSum: lump } = result;
+export function summaryCsv(result: PortfolioResult): string {
   const p = result.params;
   const freq =
     p.frequency.kind === 'daily'
@@ -53,24 +54,35 @@ export function summaryCsv(result: SimulationResult): string {
       : p.frequency.kind === 'weekly'
         ? `Hebdomadaire (jour ${p.frequency.weekday})`
         : `Mensuelle (${p.frequency.day === 'last' ? 'dernier jour' : `le ${p.frequency.day}`})`;
+  const blank = ['', '', '', '', '', '', '', ''];
+  const line = (...cells: string[]) => [...cells, ...blank].slice(0, 8);
   const rows: string[][] = [
-    ['Actif', p.asset.toUpperCase(), ''],
-    ['Montant par achat (€)', frNumber(new D(p.amountEur.replace(',', '.')), 2), ''],
-    ['Fréquence', freq, ''],
-    ['Période', `${dateFr(p.start)} au ${dateFr(p.end)}`, ''],
-    ['Frais', p.fee.kind === 'percent' ? `${p.fee.value} %` : `${p.fee.value} € par achat`, ''],
-    ['Cours final (€)', frNumber(result.endPrice, 8), `au ${dateFr(result.endPriceDate)}`],
-    ['', '', ''],
-    ['Indicateur', 'DCA', `Achat unique au ${dateFr(lump.date)}`],
-    ['Total investi (€)', frNumber(dca.invested, 2), frNumber(lump.invested, 2)],
-    ['Frais (€)', frNumber(dca.fees, 2), frNumber(lump.fees, 2)],
-    ['Quantité', frNumber(dca.quantity, 12), frNumber(lump.quantity, 12)],
-    ['Prix moyen (€)', frNumber(dca.avgPrice, 8), frNumber(lump.avgPrice, 8)],
-    ['Valeur finale (€)', frNumber(dca.value, 2), frNumber(lump.value, 2)],
-    ['Plus-value latente (€)', frNumber(dca.pnl, 2), frNumber(lump.pnl, 2)],
-    ['Plus-value latente (%)', frNumber(dca.pnlPct, 2), frNumber(lump.pnlPct, 2)],
-    ['Nombre d’achats', String(dca.purchases), '1'],
-    ['Écart de valeur DCA − achat unique (€)', frNumber(result.difference, 2), ''],
+    line('Montant par échéance (€)', frNumber(result.amountPerPeriod, 2)),
+    line('Fréquence', freq),
+    line('Période', `${dateFr(p.start)} au ${dateFr(p.end)}`),
+    line('Frais', p.fee.kind === 'percent' ? `${p.fee.value} %` : `${p.fee.value} € par achat`),
+    line('Capital de départ (€)', p.initialCapitalEur ? frNumber(new D(p.initialCapitalEur), 2) : '0,00'),
+    line(),
+    ['Actif', 'Montant par échéance (€)', 'Total investi (€)', 'Quantité', 'Prix moyen (€)', 'Cours final (€)', 'Valeur finale (€)', 'Plus-value latente (€)'],
+    ...result.assets.map(({ asset, result: r }) => [
+      asset,
+      frNumber(new D(r.params.amountEur), 2),
+      frNumber(r.dca.invested, 2),
+      frNumber(r.dca.quantity, 12),
+      frNumber(r.dca.avgPrice, 8),
+      frNumber(r.endPrice, 8),
+      frNumber(r.dca.value, 2),
+      frNumber(r.dca.pnl, 2),
+    ]),
+    line(),
+    line('Indicateur', 'DCA', 'Achat unique au départ'),
+    line('Total investi (€)', frNumber(result.dca.invested, 2), frNumber(result.lumpSum.invested, 2)),
+    line('Frais (€)', frNumber(result.dca.fees, 2), frNumber(result.lumpSum.fees, 2)),
+    line('Valeur finale (€)', frNumber(result.dca.value, 2), frNumber(result.lumpSum.value, 2)),
+    line('Plus-value latente (€)', frNumber(result.dca.pnl, 2), frNumber(result.lumpSum.pnl, 2)),
+    line('Plus-value latente (%)', frNumber(result.dca.pnlPct, 2), frNumber(result.lumpSum.pnlPct, 2)),
+    line('Nombre d’achats', String(result.dca.purchases), String(result.assets.length)),
+    line('Écart de valeur DCA − achat unique (€)', frNumber(result.difference, 2)),
   ];
-  return BOM + toCsv(['Simulation dca-crypto', '', ''], rows, ';');
+  return BOM + toCsv(line('Simulation dca-crypto'), rows, ';');
 }

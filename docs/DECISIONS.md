@@ -46,3 +46,18 @@ Deux séries de couleur (bleu, orange) validées par calcul (écart pour les dal
 
 ## D-015 ✅ Exports pour tableur
 Tableau des achats et synthèse en CSV « ; », virgule décimale, BOM UTF-8 : ouverture directe dans un tableur réglé en français. Montants à 2 décimales, cours et quantités sans zéros inutiles.
+
+## D-016 ✅ Plusieurs cryptos, un montant par crypto
+Remplace la v1.1 « allocation en % » prévue après le MVP : choix d'Arnaud (5 oct. 2026). Jusqu'à 10 cryptos, chacune avec son montant à chaque échéance (même fréquence, même période, mêmes frais). Chaque crypto est simulée séparément puis les résultats sont additionnés (`core/portfolio.ts`). Le capital de départ est réparti au prorata des montants, au centime, le reste sur la dernière ligne. L'achat unique de comparaison achète chaque crypto en une fois à sa première date. Une crypto cotée plus tard commence à son premier cours (D-009). Un symbole en double est refusé. Avec une seule crypto, l'écran reste celui de la v0.2.
+
+## D-017 ✅ Vérification des symboles sur Binance
+Chaque ligne indique où l'outil trouvera les cours : coté sur Binance (paires `XEUR`, `XUSDT`), introuvable, ou vos cours (fichier). La vérification utilise la liste des paires Binance (une requête, après consentement), gardée 7 jours sur l'appareil ; « Vérifier sur Binance » la charge avant tout lancement. Seules les paires en EUR et USDT sont conservées.
+
+## D-018 ✅ Prix CSV par crypto
+Remplace le choix global « Binance ou fichier » de la v0.2 : chaque crypto peut recevoir son fichier de prix (« Prix CSV »), les autres passent par Binance. Une crypto absente de Binance est donc simulable. Le consentement n'est demandé que si au moins une crypto passe par Binance. Les fichiers sont gardés sur l'appareil, par symbole ; « Utiliser Binance » retire le fichier.
+
+## D-019 ✅ Sauvegarde version 2
+`params.assets` (liste crypto + montant) et `prices` par crypto ; `priceFiles` indique les cryptos dont les cours venaient d'un fichier. Une sauvegarde de version 1 (une crypto) est migrée à l'ouverture. Rouverte, une sauvegarde rattache ses cours aux cryptos comme des fichiers importés (D-013).
+
+## D-020 ✅ Auteur affiché
+« par Arnaud (Patart50) », lien vers son profil GitHub, sous le titre (visible aussi sur mobile) et dans le pied de page ; balise `meta author`.

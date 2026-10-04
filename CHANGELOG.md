@@ -1,5 +1,14 @@
 # Notes de version
 
+## 0.3.0 — Plusieurs cryptos
+
+- Jusqu'à 10 cryptos dans une même simulation, chacune avec son montant à chaque achat ; capital de départ réparti.
+- Symbole saisi à la main vérifié sur Binance (paires EUR et USDT), statut affiché sous chaque crypto.
+- Fichier de prix par crypto : une crypto absente de Binance peut être simulée.
+- Résultats par crypto, graphique du prix moyen au choix de la crypto, filtre des achats par crypto.
+- Exports et sauvegarde multi-cryptos (les sauvegardes de la v0.2 se rouvrent).
+- Nom de l'auteur sous le titre.
+
 ## 0.2.0 — J2 : interface
 
 - Formulaire de stratégie : actif, montant, fréquence, période, frais, capital de départ, source des cours.
