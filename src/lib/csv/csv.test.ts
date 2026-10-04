@@ -3,7 +3,7 @@ import { detectDelimiter, parseCsv, toCsv } from './csv';
 
 describe('parseCsv', () => {
   it('lit un CSV simple avec BOM et CRLF', () => {
-    const t = parseCsv('﻿a,b,c\r\n1,2,3\r\n4,5,6\r\n');
+    const t = parseCsv('\uFEFFa,b,c\r\n1,2,3\r\n4,5,6\r\n');
     expect(t.headers).toEqual(['a', 'b', 'c']);
     expect(t.rows).toEqual([
       ['1', '2', '3'],

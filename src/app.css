@@ -21,6 +21,10 @@
   --warn: #8a5300;
   --warn-bg: #fff4de;
   --focus: #2541b2;
+  /* Séries des graphiques (validées : écart CVD, contraste, bande de luminosité). */
+  --series-1: #2541b2;
+  --series-2: #c2410c;
+  --series-muted: #5a6478;
 
   --font-ui: 'Public Sans Variable', system-ui, sans-serif;
   --font-doc: 'Source Serif 4 Variable', Georgia, serif;
@@ -49,6 +53,9 @@
     --warn: #f2b45a;
     --warn-bg: #2e2410;
     --focus: #8ea6ff;
+    --series-1: #6c88ee;
+    --series-2: #d9772f;
+    --series-muted: #9aa4b5;
     --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.5);
     color-scheme: dark;
   }
@@ -70,6 +77,9 @@
   --warn: #f2b45a;
   --warn-bg: #2e2410;
   --focus: #8ea6ff;
+  --series-1: #6c88ee;
+  --series-2: #d9772f;
+  --series-muted: #9aa4b5;
   --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.5);
   color-scheme: dark;
 }

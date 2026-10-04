@@ -6,7 +6,7 @@ Simulateur de stratégie DCA (achats réguliers) en crypto, **100 % local**, en 
 - Qu'aurait donné le même montant investi en une seule fois au départ ?
 - Export des achats simulés vers [pmpa-crypto](https://github.com/Patart50/pmpa-crypto), pour le calcul fiscal.
 
-> En construction (jalon J1 : moteur de calcul et prix). L'interface arrive au jalon J2.
+Site : https://patart50.github.io/dca-crypto/
 
 ## Principes
 

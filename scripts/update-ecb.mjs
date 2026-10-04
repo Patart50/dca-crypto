@@ -23,7 +23,7 @@ const OUTPUT = fileURLToPath(new URL('../src/lib/prices/ecb-eurusd.json', import
  * @returns {[string, string][]}
  */
 export function parseEcbCsv(text) {
-  const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim() !== '');
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim() !== '');
   if (lines.length === 0) throw new Error('Réponse vide');
   const split = (line) => line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
   const headers = split(lines[0]);
