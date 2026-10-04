@@ -31,3 +31,18 @@ Une échéance sans cours (actif pas encore coté, trou de données) ne donne pa
 
 ## D-010 ✅ Capital de départ
 Investi en plus de l'achat régulier, à la première date achetée, comme un achat distinct (frais selon la même règle). Exporté comme une ligne à part, notée « Capital de départ ».
+
+## D-011 ✅ Consentement Binance mémorisé, révocable
+Le premier lancement avec la source Binance affiche ce qui sera envoyé (noms de paires et dates) ; rien ne part avant « Autoriser et lancer ». Le choix est mémorisé et se retire d'un clic sous le choix de la source. Alternative proposée dans le même encart : un fichier CSV de prix.
+
+## D-012 ✅ Cache local des cours
+Les séries chargées sont gardées par actif dans le localStorage. Un cours journalier est définitif une fois la journée UTC terminée ; une série qui contient le jour en cours n'est réutilisée qu'une heure. Deux périodes qui se touchent sont fusionnées, sinon la nouvelle remplace l'ancienne. Au chargement de la page, la dernière simulation est relancée à partir du cache ou des cours importés, sans appel réseau.
+
+## D-013 ✅ Sauvegarde JSON avec les cours
+La sauvegarde (`app`, `schemaVersion`) contient les paramètres et les cours de la période : elle se rouvre hors ligne et redonne le même résultat. Rouverte, elle devient la source « fichier » (date de fin fixée). Version plus récente refusée, structure ou cours illisibles refusés sans rien modifier.
+
+## D-014 ✅ Graphiques : couleurs validées, lecture au clavier
+Deux séries de couleur (bleu, orange) validées par calcul (écart pour les daltonismes, contraste, bande de luminosité) en clair et en sombre ; le total investi en gris pointillé. Un seul axe, zéro inclus pour les valeurs. Légende toujours visible, étiquettes en bout de courbe au-delà de 560 px. Réticule et info-bulle au survol ; au clavier, la zone du graphique est un curseur (flèches, Début, Fin) qui annonce la date et les valeurs. Les chiffres restent lisibles sans graphique (synthèse, comparaison, tableau des achats).
+
+## D-015 ✅ Exports pour tableur
+Tableau des achats et synthèse en CSV « ; », virgule décimale, BOM UTF-8 : ouverture directe dans un tableur réglé en français. Montants à 2 décimales, cours et quantités sans zéros inutiles.
